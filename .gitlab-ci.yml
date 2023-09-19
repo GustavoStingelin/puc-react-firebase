@@ -1,0 +1,80 @@
+image: node:latest
+
+stages:
+ - Build
+ - Source Composition Analysis
+ - Static Application Security Testing
+ - Dynamic Application Security Testing 
+ - Deploy
+
+services:
+  - docker:dind 
+
+build:
+   image: docker:latest
+   stage: Build
+   variables:
+    IMAGE: ${CI_REGISTRY_USER}/puc-devops:latest
+   script:
+      - "docker build -t ${CI_REGISTRY_USER}/puc-devops:latest ."
+      - "docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}"
+      - "docker push ${CI_REGISTRY_USER}/puc-devops:latest"
+
+owasp:
+   image: docker:latest
+   stage: Dynamic Application Security Testing
+   script:
+     - echo 'hello!'
+     - ls
+     - docker run -v $(pwd):/zap/wrk -u $(id -u ${USER}):$(id -g ${USER}) -t owasp/zap2docker-stable zap-baseline.py -t ${URL2} -J report_json
+   artifacts:
+     when: always
+     paths: [report_json.json]
+   allow_failure: true
+
+deploy:
+  image: ubuntu:latest
+  stage: Deploy
+
+  script:
+     - 'echo "Building docker!"'
+     - apt-get update -qq
+     # Setup SSH deploy keys
+     - 'which ssh-agent || ( apt-get install -qq openssh-client )'
+     - eval $(ssh-agent -s)
+     - ssh-add <(echo "$SSH_PRIVATE_KEY")
+     - mkdir -p ~/.ssh
+     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  
+     - echo "Deploy project on server"
+     - ssh $DEPLOY_HOST "docker pull ${CI_REGISTRY_USER}/puc-devops:latest"
+     - ssh $DEPLOY_HOST "docker stop app-puc-devops"
+     - ssh $DEPLOY_HOST "docker run --rm -d --name app-puc-devops -p $APP_PORT:$APP_PORT ${CI_REGISTRY_USER}/puc-devops:latest"
+    
+alert:
+  stage: Deploy
+  after_script:
+    - chmod +x telegram.sh
+    - ./telegram.sh
+  script:
+    - echo "send message to telegram!"
+  
+sast:
+  stage: Static Application Security Testing
+  script:
+    - npm install eslint eslint-plugin-security
+    - npx eslint --format=json -o sast-output.json .
+  artifacts:
+    when: always
+    paths: [sast-output.json]
+  allow_failure: true
+
+dependencycheck:
+   stage: Source Composition Analysis
+   script:
+    - npm install -g npm audit
+    - npm audit --json > npm-audit-results.json
+   artifacts:
+    paths: [npm-audit-results.json]
+    when: always
+   allow_failure: true
