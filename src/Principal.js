@@ -1,22 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { auth, firestore } from "./firebase";
-
+import { auth, db } from "./firebase";
+import { getDoc, doc } from "firebase/firestore";
 const Principal = () => {
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        firestore.collection("usuarios")
-          .doc(user.uid)
-          .get()
-          .then((doc) => {
-            if (doc.exists) {
-              setUserData(doc.data());
-            } else {
-              console.error("Usuário não encontrado no Firestore.");
-            }
-          });
+
+        const docRef = doc(db, "usuarios", user.uid);
+        getDoc(docRef).then((docSnap) => {
+          if (docSnap.exists) {
+            setUserData(docSnap.data());
+          } else {
+            console.error("Usuário " + user.uid + " não encontrado no Firestore.");
+          }
+        })
       }
     });
 

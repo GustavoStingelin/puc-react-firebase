@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { auth, firestore } from "./firebase";
+import { auth, db } from "./firebase";
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { setDoc, doc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 const Signup = () => {
@@ -9,7 +10,7 @@ const Signup = () => {
   const [nome, setNome] = useState("");
   const [sobrenome, setSobrenome] = useState("");
   const [dataNascimento, setDataNascimento] = useState("");
-  const navigate = useNavigate(); // Use 'useNavigate' em vez de 'useHistory'
+  const navigate = useNavigate();
 
   const cadastrarUsuario = async () => {
     try {
@@ -20,13 +21,13 @@ const Signup = () => {
       );
       const user = userCredential.user;
 
-      await firestore.collection("usuarios").doc(user.uid).set({
-        nome,
-        sobrenome,
-        dataNascimento,
+      await setDoc(doc(db, "usuarios", user.uid), {
+        nome: nome,
+        sobrenome: sobrenome,
+        dataNascimento: dataNascimento
       });
 
-      navigate("/principal"); // Use 'navigate' para redirecionar para /principal
+      navigate("/principal");
     } catch (error) {
       console.error("Erro ao cadastrar usuário:", error);
     }
@@ -36,7 +37,7 @@ const Signup = () => {
     <div>
       <h2>Cadastro</h2>
       <input
-        type="text"
+        type="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -60,7 +61,7 @@ const Signup = () => {
         onChange={(e) => setSobrenome(e.target.value)}
       />
       <input
-        type="text"
+        type="date"
         placeholder="Data de Nascimento"
         value={dataNascimento}
         onChange={(e) => setDataNascimento(e.target.value)}
